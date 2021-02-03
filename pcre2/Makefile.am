@@ -325,18 +325,18 @@ include_HEADERS = src/pcre2posix.h
 bin_SCRIPTS = pcre2-config
 
 ## ---------------------------------------------------------------
-## The dftables program is used to rebuild character tables before compiling
-## PCRE2, if --enable-rebuild-chartables is specified. It is not a user-visible
-## program. The default (when --enable-rebuild-chartables is not specified) is
-## to copy a distributed set of tables that are defined for ASCII code. In this
-## case, dftables is not needed.
+## The pcre2_dftables program is used to rebuild character tables before
+## compiling PCRE2, if --enable-rebuild-chartables is specified. It is not an
+## installed program. The default (when --enable-rebuild-chartables is not
+## specified) is to copy a distributed set of tables that are defined for ASCII
+## code. In this case, pcre2_dftables is not needed.
 
 if WITH_REBUILD_CHARTABLES
-noinst_PROGRAMS += dftables
-dftables_SOURCES = src/dftables.c
-src/pcre2_chartables.c: dftables$(EXEEXT)
+noinst_PROGRAMS += pcre2_dftables
+pcre2_dftables_SOURCES = src/pcre2_dftables.c
+src/pcre2_chartables.c: pcre2_dftables$(EXEEXT)
 	rm -f $@
-	./dftables$(EXEEXT) $@
+	./pcre2_dftables$(EXEEXT) $@
 else
 src/pcre2_chartables.c: $(srcdir)/src/pcre2_chartables.c.dist
 	rm -f $@
@@ -391,6 +391,7 @@ nodist_libpcre2_8_la_SOURCES = \
 libpcre2_8_la_CFLAGS = \
   -DPCRE2_CODE_UNIT_WIDTH=8 \
   $(VISIBILITY_CFLAGS) \
+  $(CET_CFLAGS) \
   $(AM_CFLAGS)
 libpcre2_8_la_LIBADD =
 endif # WITH_PCRE2_8
@@ -404,6 +405,7 @@ nodist_libpcre2_16_la_SOURCES = \
 libpcre2_16_la_CFLAGS = \
   -DPCRE2_CODE_UNIT_WIDTH=16 \
   $(VISIBILITY_CFLAGS) \
+  $(CET_CFLAGS) \
   $(AM_CFLAGS)
 libpcre2_16_la_LIBADD =
 endif # WITH_PCRE2_16
@@ -417,6 +419,7 @@ nodist_libpcre2_32_la_SOURCES = \
 libpcre2_32_la_CFLAGS = \
   -DPCRE2_CODE_UNIT_WIDTH=32 \
   $(VISIBILITY_CFLAGS) \
+  $(CET_CFLAGS) \
   $(AM_CFLAGS)
 libpcre2_32_la_LIBADD =
 endif # WITH_PCRE2_32
@@ -445,15 +448,15 @@ EXTRA_DIST += \
   src/sljit/sljitNativePPC_32.c \
   src/sljit/sljitNativePPC_64.c \
   src/sljit/sljitNativePPC_common.c \
+  src/sljit/sljitNativeS390X.c \
   src/sljit/sljitNativeSPARC_32.c \
   src/sljit/sljitNativeSPARC_common.c \
-  src/sljit/sljitNativeTILEGX-encoder.c \
-  src/sljit/sljitNativeTILEGX_64.c \
   src/sljit/sljitNativeX86_32.c \
   src/sljit/sljitNativeX86_64.c \
   src/sljit/sljitNativeX86_common.c \
   src/sljit/sljitProtExecAllocator.c \
-  src/sljit/sljitUtils.c
+  src/sljit/sljitUtils.c \
+  src/sljit/sljitWXExecAllocator.c
 
 # Some of the JIT sources are also in separate files that are #included.
 
@@ -634,6 +637,7 @@ EXTRA_DIST += \
   testdata/grepoutputCN \
   testdata/grepoutputN \
   testdata/greppatN4 \
+  testdata/testbtables \
   testdata/testinput1 \
   testdata/testinput2 \
   testdata/testinput3 \

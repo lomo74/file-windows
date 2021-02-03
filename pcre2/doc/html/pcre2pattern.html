@@ -114,7 +114,8 @@ Another special sequence that may appear at the start of a pattern is (*UCP).
 This has the same effect as setting the PCRE2_UCP option: it causes sequences
 such as \d and \w to use Unicode properties to determine character types,
 instead of recognizing only characters with codes less than 256 via a lookup
-table.
+table. If also causes upper/lower casing operations to use Unicode properties
+for characters with code points greater than 127, even when UTF is not set.
 </P>
 <P>
 Some applications that allow their users to supply patterns may wish to
@@ -288,8 +289,11 @@ corresponding characters in the subject. As a trivial example, the pattern
   The quick brown fox
 </pre>
 matches a portion of a subject string that is identical to itself. When
-caseless matching is specified (the PCRE2_CASELESS option), letters are matched
-independently of case.
+caseless matching is specified (the PCRE2_CASELESS option or (?i) within the
+pattern), letters are matched independently of case. Note that there are two
+ASCII characters, K and S, that, in addition to their lower case ASCII
+equivalents, are case-equivalent with Unicode U+212A (Kelvin sign) and U+017F
+(long S) respectively when either PCRE2_UTF or PCRE2_UCP is set.
 </P>
 <P>
 The power of regular expressions comes from the ability to include wild cards,
@@ -325,6 +329,20 @@ a character class the only metacharacters are:
   [      POSIX character class (if followed by POSIX syntax)
   ]      terminates the character class
 </pre>
+If a pattern is compiled with the PCRE2_EXTENDED option, most white space in
+the pattern, other than in a character class, and characters between a #
+outside a character class and the next newline, inclusive, are ignored. An
+escaping backslash can be used to include a white space or a # character as
+part of the pattern. If the PCRE2_EXTENDED_MORE option is set, the same
+applies, but in addition unescaped space and horizontal tab characters are
+ignored inside a character class. Note: only these two characters are ignored,
+not the full set of pattern white space characters that are ignored outside a
+character class. Option settings can be changed within a pattern; see the
+section entitled
+<a href="#internaloptions">"Internal Option Setting"</a>
+below.
+</P>
+<P>
 The following sections describe the use of each of the metacharacters.
 </P>
 <br><a name="SEC5" href="#TOC1">BACKSLASH</a><br>
@@ -342,16 +360,9 @@ precede a non-alphanumeric with backslash to specify that it stands for itself.
 In particular, if you want to match a backslash, you write \\.
 </P>
 <P>
-In a UTF mode, only ASCII digits and letters have any special meaning after a
-backslash. All other characters (in particular, those whose code points are
-greater than 127) are treated as literals.
-</P>
-<P>
-If a pattern is compiled with the PCRE2_EXTENDED option, most white space in
-the pattern (other than in a character class), and characters between a #
-outside a character class and the next newline, inclusive, are ignored. An
-escaping backslash can be used to include a white space or # character as part
-of the pattern.
+Only ASCII digits and letters have any special meaning after a backslash. All
+other characters (in particular, those whose code points are greater than 127)
+are treated as literals.
 </P>
 <P>
 If you want to treat all characters in a sequence as literals, you can do so by
@@ -818,6 +829,7 @@ Caucasian_Albanian,
 Chakma,
 Cham,
 Cherokee,
+Chorasmian,
 Common,
 Coptic,
 Cuneiform,
@@ -825,6 +837,7 @@ Cypriot,
 Cyrillic,
 Deseret,
 Devanagari,
+Dives_Akuru,
 Dogra,
 Duployan,
 Egyptian_Hieroglyphs,
@@ -856,6 +869,7 @@ Kannada,
 Katakana,
 Kayah_Li,
 Kharoshthi,
+Khitan_Small_Script,
 Khmer,
 Khojki,
 Khudawadi,
@@ -946,6 +960,7 @@ Unknown,
 Vai,
 Wancho,
 Warang_Citi,
+Yezidi,
 Yi,
 Zanabazar_Square.
 </P>
@@ -1160,8 +1175,9 @@ For example, when the pattern
 matches "foobar", the first substring is still set to "foo".
 </P>
 <P>
-Perl documents that the use of \K within assertions is "not well defined". In
-PCRE2, \K is acted upon when it occurs inside positive assertions, but is
+Perl used to document that the use of \K within lookaround assertions is "not
+well defined", but from version 5.32.0 Perl does not support this usage at all.
+In PCRE2, \K is acted upon when it occurs inside positive assertions, but is
 ignored in negative assertions. Note that when a pattern such as (?=ab\K)
 matches, the reported start of the match can be greater than the end of the
 match. Using \K in a lookbehind assertion at the start of a pattern can also
@@ -1438,7 +1454,10 @@ Characters in a class may be specified by their code points using \o, \x, or
 \N{U+hh..} in the usual way. When caseless matching is set, any letters in a
 class represent both their upper case and lower case versions, so for example,
 a caseless [aeiou] matches "A" as well as "a", and a caseless [^aeiou] does not
-match "A", whereas a caseful version would.
+match "A", whereas a caseful version would. Note that there are two ASCII
+characters, K and S, that, in addition to their lower case ASCII equivalents,
+are case-equivalent with Unicode U+212A (Kelvin sign) and U+017F (long S)
+respectively when either PCRE2_UTF or PCRE2_UCP is set.
 </P>
 <P>
 Characters that might indicate line breaks are never treated in any special way
@@ -1650,7 +1669,7 @@ that succeeds is used. If the alternatives are within a group
 <a href="#group">(defined below),</a>
 "succeeds" means matching the rest of the main pattern as well as the
 alternative in the group.
-</P>
+<a name="internaloptions"></a></P>
 <br><a name="SEC13" href="#TOC1">INTERNAL OPTION SETTING</a><br>
 <P>
 The settings of the PCRE2_CASELESS, PCRE2_MULTILINE, PCRE2_DOTALL,
@@ -1901,12 +1920,19 @@ are permitted for groups with the same number, for example:
   (?|(?&#60;AA&#62;aa)|(?&#60;AA&#62;bb))
 </pre>
 The duplicate name constraint can be disabled by setting the PCRE2_DUPNAMES
-option at compile time, or by the use of (?J) within the pattern. Duplicate
-names can be useful for patterns where only one instance of the named capture
-group can match. Suppose you want to match the name of a weekday, either as a
-3-letter abbreviation or as the full name, and in both cases you want to
-extract the abbreviation. This pattern (ignoring the line breaks) does the job:
+option at compile time, or by the use of (?J) within the pattern, as described
+in the section entitled
+<a href="#internaloptions">"Internal Option Setting"</a>
+above.
+</P>
+<P>
+Duplicate names can be useful for patterns where only one instance of the named
+capture group can match. Suppose you want to match the name of a weekday,
+either as a 3-letter abbreviation or as the full name, and in both cases you
+want to extract the abbreviation. This pattern (ignoring the line breaks) does
+the job:
 <pre>
+  (?J)
   (?&#60;DN&#62;Mon|Fri|Sun)(?:day)?|
   (?&#60;DN&#62;Tue)(?:sday)?|
   (?&#60;DN&#62;Wed)(?:nesday)?|
@@ -1927,7 +1953,7 @@ they appear in the overall pattern. The first one that is set is used for the
 reference. For example, this pattern matches both "foofoo" and "barbar" but not
 "foobar" or "barfoo":
 <pre>
-  (?:(?&#60;n&#62;foo)|(?&#60;n&#62;bar))\k&#60;n&#62;
+  (?J)(?:(?&#60;n&#62;foo)|(?&#60;n&#62;bar))\k&#60;n&#62;
 
 </PRE>
 </P>
@@ -1961,7 +1987,7 @@ items:
   an escape such as \d or \pL that matches a single character
   a character class
   a backreference
-  a parenthesized group (including most assertions)
+  a parenthesized group (including lookaround assertions)
   a subroutine call (recursive or otherwise)
 </pre>
 The general repetition quantifier specifies a minimum and maximum number of
@@ -2349,11 +2375,11 @@ using alternation, as in the example above, or by a quantifier with a minimum
 of zero.
 </P>
 <P>
-Backreferences of this type cause the group that they reference to be treated
-as an
+For versions of PCRE2 less than 10.25, backreferences of this type used to
+cause the group that they reference to be treated as an
 <a href="#atomicgroup">atomic group.</a>
-Once the whole group has been matched, a subsequent matching failure cannot
-cause backtracking into the middle of the group.
+This restriction no longer applies, and backtracking into such groups can occur
+as normal.
 <a name="bigassertions"></a></P>
 <br><a name="SEC20" href="#TOC1">ASSERTIONS</a><br>
 <P>
@@ -2413,26 +2439,13 @@ control passes to the previous backtracking point, thus discarding any captured
 strings within the assertion.
 </P>
 <P>
-For compatibility with Perl, most assertion groups may be repeated; though it
-makes no sense to assert the same thing several times, the side effect of
-capturing may occasionally be useful. However, an assertion that forms the
-condition for a conditional group may not be quantified. In practice, for
-other assertions, there only three cases:
-<br>
-<br>
-(1) If the quantifier is {0}, the assertion is never obeyed during matching.
-However, it may contain internal capture groups that are called from elsewhere
-via the
-<a href="#groupsassubroutines">subroutine mechanism.</a>
-<br>
-<br>
-(2) If quantifier is {0,n} where n is greater than zero, it is treated as if it
-were {0,1}. At run time, the rest of the pattern match is tried with and
-without the assertion, the order depending on the greediness of the quantifier.
-<br>
-<br>
-(3) If the minimum repetition is greater than zero, the quantifier is ignored.
-The assertion is obeyed just once when encountered during matching.
+Most assertion groups may be repeated; though it makes no sense to assert the
+same thing several times, the side effect of capturing in positive assertions
+may occasionally be useful. However, an assertion that forms the condition for
+a conditional group may not be quantified. PCRE2 used to restrict the
+repetition of assertions, but from release 10.35 the only restriction is that
+an unlimited maximum repetition is changed to be one more than the minimum. For
+example, {3,} is treated as {3,4}.
 </P>
 <br><b>
 Alphabetic assertion names
@@ -2624,8 +2637,8 @@ backtracking into the assertion. However, there are some cases where non-atomic
 positive assertions can be useful. PCRE2 provides these using the following
 syntax:
 <pre>
-  (*non_atomic_positive_lookahead:  or (*napla:
-  (*non_atomic_positive_lookbehind: or (*naplb:
+  (*non_atomic_positive_lookahead:  or (*napla: or (?*
+  (*non_atomic_positive_lookbehind: or (*naplb: or (?&#60;*
 </pre>
 Consider the problem of finding the right-most word in a string that also
 appears earlier in the string, that is, it must appear at least twice in total.
@@ -2665,9 +2678,15 @@ as before because nothing has changed, so using a non-atomic assertion just
 wastes resources.
 </P>
 <P>
+There is one exception to backtracking into a non-atomic assertion. If an
+(*ACCEPT) control verb is triggered, the assertion succeeds atomically. That
+is, a subsequent match failure cannot backtrack into the assertion.
+</P>
+<P>
 Non-atomic assertions are not supported by the alternative matching function
-<b>pcre2_dfa_match()</b>. They are also not supported by JIT (but may be in
-future). Note that assertions that appear as conditions for
+<b>pcre2_dfa_match()</b>. They are supported by JIT, but only if they do not
+contain any control verbs such as (*ACCEPT). (This may change in future). Note
+that assertions that appear as conditions for
 <a href="#conditions">conditional groups</a>
 (see below) must be atomic.
 </P>
@@ -3833,9 +3852,9 @@ Cambridge, England.
 </P>
 <br><a name="SEC32" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 29 July 2019
+Last updated: 06 October 2020
 <br>
-Copyright &copy; 1997-2019 University of Cambridge.
+Copyright &copy; 1997-2020 University of Cambridge.
 <br>
 <p>
 Return to the <a href="index.html">PCRE2 index page</a>.
